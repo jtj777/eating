@@ -77,12 +77,14 @@ const DEFAULT_RESTAURANTS = [
         lng: 121.5078,
         address: "台北市萬華區峨眉街8-1號",
         notes: "西門町經典小吃，站著吃也心甘情願，柴魚湯頭濃郁。",
-        link: "https://www.ubereats.com/"
+        link: "https://www.ubereats.com/",
+        timeSlot: "all"
     }
 ];
 
 let restaurants = [];
 let lastWinner = null;
+let currentMealMode = "auto"; // "auto", "breakfast", "lunch_dinner"
 
 // Map & Geolocation variables
 let map;
@@ -203,30 +205,30 @@ function playTickSound(speed = 10) {
         if (audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
-        
+
         const osc = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
-        
+
         osc.connect(gainNode);
         gainNode.connect(audioCtx.destination);
-        
+
         // Speed is between 0 and 50. Slow speed = less than 0.8
         const isRacing = speed > 20;
         const isSuspenseTick = speed < 0.8;
-        
+
         // Deep engine roar for racing, sharp click for normal
-        const pitch = isRacing ? (40 + speed * 1.5) : (isSuspenseTick ? 400 : 750); 
+        const pitch = isRacing ? (40 + speed * 1.5) : (isSuspenseTick ? 400 : 750);
         const duration = isRacing ? 0.05 : (isSuspenseTick ? 0.08 : 0.03);
-        
+
         osc.type = isRacing ? 'sawtooth' : 'sine';
         osc.frequency.setValueAtTime(pitch, audioCtx.currentTime);
         if (!isRacing) osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + duration);
-        
+
         // Lowpass filter for engine muffler effect
         const filter = audioCtx.createBiquadFilter();
         filter.type = 'lowpass';
         filter.frequency.setValueAtTime(isRacing ? 250 : 20000, audioCtx.currentTime);
-        
+
         osc.disconnect();
         osc.connect(filter);
         filter.connect(gainNode);
@@ -234,7 +236,7 @@ function playTickSound(speed = 10) {
         const startGain = isRacing ? 0.4 : (isSuspenseTick ? 0.25 : 0.12);
         gainNode.gain.setValueAtTime(startGain, audioCtx.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-        
+
         osc.start();
         osc.stop(audioCtx.currentTime + duration);
     } catch (e) {
@@ -254,21 +256,21 @@ function playWinSound() {
             setTimeout(() => {
                 const osc = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
-                
+
                 osc.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
-                
+
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                
+
                 gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
-                
+
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.65);
             }, idx * 100);
         });
-    } catch (e) {}
+    } catch (e) { }
 }
 
 // 語音語音朗讀輔助函數
@@ -277,7 +279,7 @@ function speakText(text) {
         window.speechSynthesis.cancel(); // 停止先前的朗讀
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'zh-TW';
-        
+
         // 尋找中文語音
         const voices = window.speechSynthesis.getVoices();
         const voice = voices.find(v => v.lang.includes('zh-TW') || v.lang.includes('zh-HK') || v.lang.includes('zh-CN'));
@@ -339,7 +341,7 @@ function updateMapMarkers(filteredList) {
             // Build rating stars
             const stars = '★'.repeat(parseInt(item.rating)) + '☆'.repeat(5 - parseInt(item.rating));
             const priceSymbol = '$'.repeat(parseInt(item.price));
-            
+
             const popupContent = `
                 <div class="map-popup-card">
                     <h3 class="popup-title">${item.name}</h3>
@@ -377,7 +379,7 @@ function updateMapMarkers(filteredList) {
 // ==========================================================================
 function renderRestaurantList(filteredList) {
     const listContainer = document.getElementById("restaurant-list");
-    
+
     if (filteredList.length === 0) {
         listContainer.innerHTML = `
             <div class="empty-state">
@@ -457,10 +459,50 @@ function locateRestaurantOnMap(id) {
 }
 
 function refreshUI() {
-    rouletteRestaurants = restaurants;
+    updateModeUI();
+    rouletteRestaurants = filterRestaurantsByTime(restaurants);
     renderRestaurantList(restaurants);
-    updateMapMarkers(restaurants);
+    updateMapMarkers(rouletteRestaurants);
     initCanvasRoulette();
+}
+
+function getCurrentTimeMode() {
+    if (currentMealMode !== "auto") return currentMealMode;
+    const hour = new Date().getHours();
+    // 05:00 - 10:59 Breakfast
+    if (hour >= 5 && hour < 11) {
+        return "breakfast";
+    }
+    return "lunch_dinner";
+}
+
+function filterRestaurantsByTime(list) {
+    const mode = getCurrentTimeMode();
+    return list.filter(item => {
+        const slot = item.timeSlot || 'all';
+        if (slot === 'all') return true;
+        return slot === mode;
+    });
+}
+
+function updateModeUI() {
+    const modeBtn = document.getElementById("mode-toggle-btn");
+    const modeIcon = document.getElementById("mode-icon");
+    const modeText = document.getElementById("mode-text");
+    if (!modeBtn) return;
+
+    const mode = getCurrentTimeMode();
+    if (mode === "breakfast") {
+        modeIcon.textContent = "☀️";
+        modeText.textContent = "早餐模式";
+        modeBtn.style.color = "#fbbf24";
+        modeBtn.style.borderColor = "rgba(251, 191, 36, 0.3)";
+    } else {
+        modeIcon.textContent = "🌙";
+        modeText.textContent = "午晚餐模式";
+        modeBtn.style.color = "#a855f7";
+        modeBtn.style.borderColor = "rgba(168, 85, 247, 0.3)";
+    }
 }
 
 // ==========================================================================
@@ -472,13 +514,14 @@ function openAddModal() {
     document.getElementById("restaurant-form").reset();
     document.getElementById("star-3").checked = true; // Default 3 stars
     document.getElementById("rt-link").value = "";
+    document.getElementById("rt-timeslot").value = "all";
     selectedCoordinates = null;
     document.getElementById("rt-latlng").value = "";
-    
+
     // 重設進階設定折疊狀態
     document.getElementById("advanced-form-fields").classList.remove("open");
     document.getElementById("toggle-advanced-btn").textContent = "展開進階設定 ▾";
-    
+
     openModal("restaurant-modal");
 }
 
@@ -498,6 +541,7 @@ function openEditModal(id) {
     document.getElementById("rt-cuisine").value = item.cuisine;
     document.getElementById("rt-price").value = item.price;
     document.getElementById(`star-${item.rating}`).checked = true;
+    document.getElementById("rt-timeslot").value = item.timeSlot || "all";
     document.getElementById("rt-address").value = item.address || "";
     document.getElementById("rt-link").value = item.link || "";
     document.getElementById("rt-notes").value = item.notes || "";
@@ -519,15 +563,16 @@ function openEditModal(id) {
 
 function handleFormSubmit(e) {
     e.preventDefault();
-    
+
     const id = document.getElementById("edit-id").value;
     const name = document.getElementById("rt-name").value.trim();
     const cuisine = document.getElementById("rt-cuisine").value.trim() || "未分類";
+    const timeSlot = document.getElementById("rt-timeslot").value;
     const price = document.getElementById("rt-price").value;
     const notes = document.getElementById("rt-notes").value.trim();
     const address = document.getElementById("rt-address").value.trim();
     const link = document.getElementById("rt-link").value.trim();
-    
+
     // Get star rating
     const ratingActive = document.querySelector('input[name="rating"]:checked');
     const rating = ratingActive ? ratingActive.value : "3";
@@ -556,7 +601,7 @@ function handleFormSubmit(e) {
         if (index !== -1) {
             restaurants[index] = {
                 ...restaurants[index],
-                name, cuisine, price, rating, address, notes, link,
+                name, cuisine, price, rating, address, notes, link, timeSlot,
                 lat: targetLat, lng: targetLng
             };
         }
@@ -564,7 +609,7 @@ function handleFormSubmit(e) {
         // Add Mode
         const newRestaurant = {
             id: Date.now().toString(),
-            name, cuisine, price, rating, address, notes, link,
+            name, cuisine, price, rating, address, notes, link, timeSlot,
             lat: targetLat, lng: targetLng
         };
         restaurants.push(newRestaurant);
@@ -607,7 +652,7 @@ function loadDefaults() {
 function initCanvasRoulette() {
     canvas = document.getElementById("roulette-canvas");
     ctx = canvas.getContext("2d");
-    
+
     particleCanvas = document.getElementById("particle-canvas");
     particleCtx = particleCanvas.getContext("2d");
 
@@ -615,37 +660,37 @@ function initCanvasRoulette() {
     if (rouletteRestaurants.length === 0) {
         rouletteRestaurants = [...DEFAULT_RESTAURANTS];
     }
-    
+
     drawRouletteWheel();
 }
 
 // Draw the dynamic roulette sections on canvas
 function drawRouletteWheel() {
     if (!canvas) return;
-    
+
     const count = rouletteRestaurants.length;
     const arc = Math.PI * 2 / count;
-    
+
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     const outsideRadius = 175;
     const textRadius = 120;
     const insideRadius = 45;
-    
+
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
-    
+
     // Dynamic palette
     const colors = [
-        "#6366f1", "#4f46e5", "#8b5cf6", "#7c3aed", 
+        "#6366f1", "#4f46e5", "#8b5cf6", "#7c3aed",
         "#a855f7", "#9333ea", "#ec4899", "#db2777"
     ];
-    
+
     for (let i = 0; i < count; i++) {
         const angle = startAngle + i * arc;
         ctx.fillStyle = colors[i % colors.length];
-        
+
         ctx.beginPath();
         ctx.arc(cx, cy, outsideRadius, angle, angle + arc, false);
         ctx.arc(cx, cy, insideRadius, angle + arc, angle, true);
@@ -653,26 +698,26 @@ function drawRouletteWheel() {
         ctx.strokeStyle = "rgba(15, 23, 42, 0.4)";
         ctx.lineWidth = 2;
         ctx.stroke();
-        
+
         // Save state for text draw
         ctx.save();
         ctx.fillStyle = "#ffffff";
         ctx.translate(cx + Math.cos(angle + arc / 2) * textRadius, cy + Math.sin(angle + arc / 2) * textRadius);
         ctx.rotate(angle + arc / 2 + Math.PI / 2);
-        
+
         const text = rouletteRestaurants[i].name;
         ctx.font = 'bold 12px Outfit, Noto Sans TC';
-        
+
         // Truncate long names
         let renderText = text;
         if (renderText.length > 7) {
             renderText = renderText.slice(0, 6) + '...';
         }
-        
+
         ctx.fillText(renderText, -ctx.measureText(renderText).width / 2, 0);
         ctx.restore();
     }
-    
+
     // Draw Center Circle
     ctx.beginPath();
     ctx.arc(cx, cy, insideRadius, 0, Math.PI * 2, false);
@@ -681,7 +726,7 @@ function drawRouletteWheel() {
     ctx.lineWidth = 4;
     ctx.fill();
     ctx.stroke();
-    
+
     // Draw central text/icon inside the center circle
     ctx.fillStyle = "#ffffff";
     ctx.font = 'bold 14px Outfit, Noto Sans TC';
@@ -717,7 +762,7 @@ class BurnoutParticle {
         this.vy = vy;
         this.type = type; // 'smoke', 'rubber', 'spark'
         this.life = 0;
-        
+
         if (type === 'smoke') {
             this.size = Math.random() * 5 + 4; // 初始尺寸較小
             this.maxSize = Math.random() * 20 + 25; // 膨脹後尺寸 (25~45px)
@@ -749,10 +794,10 @@ class BurnoutParticle {
             // 阻力減速 (衰減變慢，煙霧飛得更遠更長)
             this.vx *= 0.958;
             this.vy *= 0.958;
-            
+
             // 煙霧熱對流：微幅向上漂移 (模擬真實焦黑輪胎煙霧緩緩升空)
             this.vy -= 0.06;
-            
+
             // 煙霧緩慢膨脹，限制最大半徑防止單一雲霧過大
             if (this.size < this.maxSize) {
                 this.size += 0.45;
@@ -775,7 +820,7 @@ class BurnoutParticle {
 
     draw(ctx) {
         ctx.save();
-        
+
         if (this.type === 'smoke') {
             ctx.beginPath();
             const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
@@ -783,7 +828,7 @@ class BurnoutParticle {
             grad.addColorStop(0.35, this.colorBase + `${this.alpha * 0.7})`);
             grad.addColorStop(0.7, this.colorBase + `${this.alpha * 0.15})`);
             grad.addColorStop(1, 'rgba(15, 23, 42, 0)');
-            
+
             ctx.fillStyle = grad;
             ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
             ctx.fill();
@@ -800,7 +845,7 @@ class BurnoutParticle {
             ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
             ctx.fill();
         }
-        
+
         ctx.restore();
     }
 }
@@ -808,29 +853,29 @@ class BurnoutParticle {
 // 產生賽車胎煙粒子 (僅在輪盤下方 6 點鐘接觸點)
 function spawnBurnoutParticles(speed) {
     if (speed < 1.5) return; // 轉速過慢停止產生
-    
+
     const cx = 400; // Centered relative to 800x800 particle canvas
     const cy = 400; // Centered relative to 800x800 particle canvas
     const r = 175;
-    
+
     // 輪盤正下方接觸點 (6 點鐘方向)
     const bx = cx;
     const by = cy + r;
-    
+
     // 根據轉速計算產生的粒子數量 (速度越快，煙霧越濃)
     const smokeCount = Math.floor(speed / 4.5) + 1;
     for (let i = 0; i < smokeCount; i++) {
         // 在輪盤下方接觸點微幅隨機偏差
         const px = bx + (Math.random() - 0.5) * 35;
         const py = by - 8 + (Math.random() - 0.5) * 6; // 稍微往上一點，避免貼齊邊緣
-        
+
         // 切線速度為向左 (順時針旋轉在最下方是向左移動)
         const tangentSpeed = speed * 0.18;
         const vx = -tangentSpeed - (Math.random() * 2);
         const vy = (Math.random() - 0.5) * 1.5 - 0.5; // 稍微向上與左右飄散
-        
+
         smokeParticles.push(new BurnoutParticle(px, py, vx, vy, 'smoke'));
-        
+
         // 高速磨擦時甩出橡膠碎屑 (向左下方噴出)
         if (Math.random() < 0.22 && speed > 10) {
             smokeParticles.push(new BurnoutParticle(
@@ -841,7 +886,7 @@ function spawnBurnoutParticles(speed) {
                 'rubber'
             ));
         }
-        
+
         // 極高速時磨擦起火花 (向左方噴射)
         if (Math.random() < 0.25 && speed > 18) {
             smokeParticles.push(new BurnoutParticle(
@@ -858,14 +903,14 @@ function spawnBurnoutParticles(speed) {
 // 更新與繪製粒子系統
 function updateAndDrawParticles() {
     if (!particleCanvas || !particleCtx) return;
-    
+
     // 清空粒子畫布
     particleCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
-    
+
     // 更新粒子，並過濾死亡粒子
     smokeParticles.forEach(p => p.update());
     smokeParticles = smokeParticles.filter(p => p.life < p.maxLife);
-    
+
     // 繪製粒子 (一般混合模式，符合厚重濃煙的質感)
     smokeParticles.forEach(p => p.draw(particleCtx));
 }
@@ -873,32 +918,32 @@ function updateAndDrawParticles() {
 // Dynamic spinning animation loop
 function rotateWheel() {
     let continueLoop = false;
-    
+
     if (isSpinning) {
         spinTime += 30;
         if (spinTime >= spinTimeTotal) {
             stopRotateWheel(); // Sets isSpinning = false
         }
     }
-    
+
     if (isSpinning || smokeParticles.length > 0) {
         continueLoop = true;
     }
-    
+
     if (isSpinning) {
         // Easing out quadratic function
         const spinAngleStart = spinArcStart - (easeOut(spinTime, 0, spinArcStart, spinTimeTotal));
         startAngle += (spinAngleStart * Math.PI / 180);
         drawRouletteWheel();
-        
+
         // 產生賽車燒胎煙霧與碎屑
         spawnBurnoutParticles(spinAngleStart);
-        
+
         // Dynamic Racing Visual Effects
         const canvas = document.getElementById("roulette-canvas");
         if (spinAngleStart > 10) {
             canvas.classList.add("wheel-racing-dynamic");
-            
+
             // Map speed to blur and shake amount
             const intensity = Math.min((spinAngleStart - 10) / 30, 1); // 0 to 1
             canvas.style.setProperty('--spin-blur', `${intensity * 4}px`);
@@ -912,7 +957,7 @@ function rotateWheel() {
             canvas.style.removeProperty('--spin-shake-x');
             canvas.style.removeProperty('--spin-shake-y');
         }
-        
+
         // Tick sound based on segment crossings
         const count = rouletteRestaurants.length;
         const arc = Math.PI * 2 / count;
@@ -931,12 +976,12 @@ function rotateWheel() {
         // 停止旋轉時，僅重繪靜止輪盤以覆蓋上一幀的畫面，然後在上面繪製剩餘煙霧
         drawRouletteWheel();
     }
-    
+
     // 更新並繪製所有粒子
     if (smokeParticles.length > 0) {
         updateAndDrawParticles();
     }
-    
+
     if (continueLoop) {
         requestAnimationFrame(rotateWheel);
     }
@@ -961,11 +1006,11 @@ function startSpin() {
         // Boost the spin! (Add time and speed)
         spinTimeTotal += 2500; // Add 2.5 seconds
         spinArcStart += 8; // Boost speed
-        
+
         // Cap max speed and time
         if (spinArcStart > 50) spinArcStart = 50;
         if (spinTimeTotal - spinTime > 15000) spinTimeTotal = spinTime + 15000;
-        
+
         // Visual feedback on the button
         const btn = document.getElementById("spin-btn");
         if (btn) {
@@ -974,7 +1019,7 @@ function startSpin() {
         }
         return;
     }
-    
+
     // 確保收回得獎卡片與重新鎖定地圖
     document.body.classList.remove("map-unlocked");
     const slideCard = document.getElementById("winner-slide-card");
@@ -982,18 +1027,18 @@ function startSpin() {
         slideCard.classList.remove("active");
         slideCard.classList.add("hidden");
     }
-    
+
     // 清空舊煙霧粒子與畫布
     smokeParticles = [];
     if (particleCanvas && particleCtx) {
         particleCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
     }
-    
+
     isSpinning = true;
     spinTime = 0;
     spinArcStart = Math.random() * 20 + 30; // Initial speed
     spinTimeTotal = Math.random() * 4000 + 6000; // Duration 6-10 seconds
-    
+
     rotateWheel();
 }
 
@@ -1005,26 +1050,26 @@ function stopRotateWheel() {
     canvas.style.removeProperty('--spin-glow');
     canvas.style.removeProperty('--spin-shake-x');
     canvas.style.removeProperty('--spin-shake-y');
-    
+
     // Play winning celebration arpeggio
     playWinSound();
-    
+
     // Trigger screen rumble shake
     triggerScreenShake();
-    
+
     const count = rouletteRestaurants.length;
     const arc = Math.PI * 2 / count;
-    
+
     // The pointer points downwards or upwards? 
     // In our style pointer is at the very top: Angle = 3/2 * Math.PI (or -Math.PI / 2)
     // Wheel rotates clockwise. Segment angle resolves counterclockwise relative to startAngle.
     const degrees = startAngle * 180 / Math.PI + 90;
     const arcd = arc * 180 / Math.PI;
     const index = Math.floor((360 - (degrees % 360)) / arcd) % count;
-    
+
     // Edge case correction
     const selectedItem = rouletteRestaurants[index < 0 ? count + index : index];
-    
+
     // Show Selection Result
     showWinner(selectedItem);
 }
@@ -1037,18 +1082,18 @@ function showWinner(item) {
     const rating = document.getElementById("result-rating");
     const address = document.getElementById("result-address");
     const notes = document.getElementById("result-notes");
-    
+
     title.textContent = item.name;
     cuisine.textContent = item.cuisine;
     price.textContent = '$'.repeat(parseInt(item.price));
     rating.textContent = '★'.repeat(parseInt(item.rating)) + '☆'.repeat(5 - parseInt(item.rating));
-    
+
     if (item.address) {
         address.innerHTML = `<i data-lucide="map-pin" style="width:12px; height:12px;"></i> ${item.address}`;
     } else {
         address.textContent = "";
     }
-    
+
     if (item.notes) {
         notes.textContent = `"${item.notes}"`;
         notes.classList.remove("hidden");
@@ -1127,14 +1172,14 @@ function showWinner(item) {
 }
 
 // Allows direct single-target showcase
-window.spinRouletteWithSingleTarget = function(id) {
+window.spinRouletteWithSingleTarget = function (id) {
     const target = restaurants.find(r => r.id === id);
     if (!target) return;
-    
+
     // Force wheel to target
     rouletteRestaurants = [target];
     drawRouletteWheel();
-    
+
     // Instantly select
     showWinner(target);
 };
@@ -1172,7 +1217,7 @@ function resetFromWinnerCard() {
         }, 500);
     }
     document.body.classList.remove("map-unlocked");
-    
+
     // 恢復輪盤的備選池為所有餐廳，並重繪輪盤
     rouletteRestaurants = restaurants;
     drawRouletteWheel();
@@ -1187,12 +1232,22 @@ function setupEventListeners() {
         });
     });
 
+    // Time Mode Toggle
+    const modeToggleBtn = document.getElementById("mode-toggle-btn");
+    if (modeToggleBtn) {
+        modeToggleBtn.addEventListener("click", () => {
+            const current = getCurrentTimeMode();
+            currentMealMode = current === "breakfast" ? "lunch_dinner" : "breakfast";
+            refreshUI();
+        });
+    }
+
     // Outer click modal & drawer close
     window.addEventListener("click", (e) => {
         if (e.target.classList.contains("modal")) {
             closeModal(e.target.id);
         }
-        
+
         // 點擊口袋清單抽屜外部時自動收合抽屜
         const drawer = document.getElementById("sidebar-drawer");
         const toggleBtn = document.getElementById("toggle-drawer-btn");
@@ -1319,29 +1374,29 @@ function generateMapsUrl(item) {
 function openShareModal(item) {
     const mapsUrl = generateMapsUrl(item);
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(mapsUrl)}`;
-    
+
     const qrImg = document.getElementById("qr-code-img");
     const qrShimmer = document.getElementById("qr-shimmer");
     const qrSection = document.getElementById("qr-code-section");
-    
+
     // Check if mobile device
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
     if (isMobile) {
         qrSection.style.display = "none";
     } else {
         qrSection.style.display = "flex";
-        
+
         // Dynamic loading Shimmer effect
         qrImg.classList.add("hidden");
         qrShimmer.classList.remove("hidden");
-        
+
         qrImg.onload = () => {
             qrShimmer.classList.add("hidden");
             qrImg.classList.remove("hidden");
         };
         qrImg.src = qrUrl;
     }
-    
+
     // Toggle system native share button
     const nativeShareBtn = document.getElementById("share-native-btn");
     if (navigator.share) {
@@ -1349,7 +1404,7 @@ function openShareModal(item) {
     } else {
         nativeShareBtn.classList.add("hidden");
     }
-    
+
     openModal("share-modal");
 }
 

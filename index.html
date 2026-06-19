@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,9 +8,12 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
     <!-- Leaflet Map CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <!-- App CSS -->
     <link rel="stylesheet" href="style.css?v=1.0.3">
     <!-- Inline override to prevent Safari layout caching issues -->
@@ -28,10 +32,11 @@
     <!-- Canvas Confetti CDN -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
+
 <body>
     <!-- 全螢幕背景地圖 -->
     <div id="map-container" class="map-background"></div>
-    
+
     <!-- 地圖深色玻璃模糊遮罩 -->
     <div id="map-overlay" class="map-overlay"></div>
 
@@ -42,7 +47,12 @@
                 <i data-lucide="utensils-crossed" class="logo-icon"></i>
                 <h1>今天吃什麼？</h1>
             </div>
-            <span class="date-badge" id="current-date">Sunday, June 14</span>
+            <div class="header-right" style="display: flex; gap: 8px; align-items: center;">
+                <button id="mode-toggle-btn" class="btn btn-glass btn-sm mode-toggle" title="點擊切換時段">
+                    <span id="mode-icon">☀️</span> <span id="mode-text">早餐模式</span>
+                </button>
+                <span class="date-badge" id="current-date">Sunday, June 14</span>
+            </div>
         </header>
 
         <!-- Right Side Slide Drawer (Sidebar) -->
@@ -55,19 +65,20 @@
                 </div>
                 <button id="close-drawer-btn" class="drawer-close-btn">&times;</button>
             </div>
-            
+
             <div class="drawer-actions">
                 <button id="add-restaurant-btn" class="btn btn-secondary btn-full">
                     <i data-lucide="plus"></i> 新增餐廳
                 </button>
             </div>
-            
+
             <div id="restaurant-list" class="restaurant-list">
                 <!-- JS will populate restaurant items here -->
                 <div class="empty-state">
                     <i data-lucide="store" class="empty-icon"></i>
                     <p>你的口袋清單空空如也</p>
-                    <button id="load-defaults-btn" onclick="loadDefaults()" class="btn btn-sm btn-outline">載入推薦預設餐廳</button>
+                    <button id="load-defaults-btn" onclick="loadDefaults()"
+                        class="btn btn-sm btn-outline">載入推薦預設餐廳</button>
                 </div>
             </div>
         </aside>
@@ -110,7 +121,7 @@
             </div>
             <p id="result-address" class="result-address"><i data-lucide="map-pin"></i> 台北市信義區</p>
             <p id="result-notes" class="result-notes">"這裡顯示備忘筆記..."</p>
-            
+
             <div class="result-actions">
                 <a id="result-order-btn" href="#" target="_blank" class="btn btn-primary btn-sm hidden">
                     <i data-lucide="shopping-cart"></i> 線上點餐
@@ -142,12 +153,20 @@
                     <label for="rt-cuisine">料理類型/標籤</label>
                     <input type="text" id="rt-cuisine" placeholder="例如：日式, 拉麵, 午餐" class="form-input">
                 </div>
-                
+
                 <button type="button" id="toggle-advanced-btn" class="btn-toggle-advanced">展開進階設定 ▾</button>
-                
+
                 <!-- Advanced fold-away fields -->
                 <div id="advanced-form-fields" class="advanced-form-fields">
                     <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label for="rt-timeslot">供應時段</label>
+                            <select id="rt-timeslot" class="form-select">
+                                <option value="all">全天供應</option>
+                                <option value="breakfast">僅早餐 (約 05:00~10:59)</option>
+                                <option value="lunch_dinner">僅午晚餐 (約 11:00~04:59)</option>
+                            </select>
+                        </div>
                         <div class="form-group flex-1">
                             <label for="rt-price">價格區間</label>
                             <select id="rt-price" class="form-select">
@@ -156,12 +175,15 @@
                                 <option value="3">$$$ (高檔)</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group flex-1">
                             <label for="rt-rating">美味評分</label>
                             <div class="star-rating">
                                 <input type="radio" name="rating" id="star-5" value="5"><label for="star-5">★</label>
                                 <input type="radio" name="rating" id="star-4" value="4"><label for="star-4">★</label>
-                                <input type="radio" name="rating" id="star-3" value="3" checked><label for="star-3">★</label>
+                                <input type="radio" name="rating" id="star-3" value="3" checked><label
+                                    for="star-3">★</label>
                                 <input type="radio" name="rating" id="star-2" value="2"><label for="star-2">★</label>
                                 <input type="radio" name="rating" id="star-1" value="1"><label for="star-1">★</label>
                             </div>
@@ -170,8 +192,10 @@
                     <div class="form-group">
                         <label for="rt-latlng">地圖座標 (選填)</label>
                         <div class="coords-input-wrapper">
-                            <input type="text" id="rt-latlng" placeholder="緯度, 經度 (例如: 25.04, 121.51)" class="form-input">
-                            <button type="button" id="pick-coords-btn" class="btn btn-xs btn-outline" title="使用地圖選取點">地圖選取</button>
+                            <input type="text" id="rt-latlng" placeholder="緯度, 經度 (例如: 25.04, 121.51)"
+                                class="form-input">
+                            <button type="button" id="pick-coords-btn" class="btn btn-xs btn-outline"
+                                title="使用地圖選取點">地圖選取</button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -180,14 +204,16 @@
                     </div>
                     <div class="form-group">
                         <label for="rt-link">線上點餐 / 官網連結</label>
-                        <input type="url" id="rt-link" placeholder="例如：https://www.ubereats.com/... 或 https://togo.inline.app/..." class="form-input">
+                        <input type="url" id="rt-link"
+                            placeholder="例如：https://www.ubereats.com/... 或 https://togo.inline.app/..."
+                            class="form-input">
                     </div>
                     <div class="form-group">
                         <label for="rt-notes">私房備忘錄</label>
                         <textarea id="rt-notes" placeholder="必點菜色、小菜免費、人多需排隊..." class="form-input" rows="2"></textarea>
                     </div>
                 </div>
-                
+
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline close-btn" data-modal="restaurant-modal">取消</button>
                     <button type="submit" class="btn btn-primary">儲存餐廳</button>
@@ -210,7 +236,7 @@
                     </div>
                     <p class="qr-instruction">手機相機掃描，立即導航地圖</p>
                 </div>
-                
+
                 <div class="share-options">
                     <button id="share-native-btn" class="btn btn-secondary btn-full hidden">
                         <i data-lucide="share-2"></i> 系統原生分享
@@ -222,8 +248,10 @@
 
 
     <!-- Leaflet Map JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <!-- App Logic -->
     <script src="app.js"></script>
 </body>
+
 </html>
